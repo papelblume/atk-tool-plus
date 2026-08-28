@@ -69,6 +69,22 @@ Because this tool interacts with low-level USB HID interfaces (`hidraw`), your L
 
 ---
 
+## Building
+
+```bash
+git clone https://github.com/papelblume/atk-tool-plus
+cd atk-tool-plus
+go build -o atk-tool-plus ./cmd/atk-tool-plus
+```
+
+This produces an `atk-tool-plus` binary in the project root. Run it with:
+
+```bash
+./atk-tool-plus
+```
+
+---
+
 ## Command Line Interface (CLI)
 
 ### Installation
@@ -76,8 +92,7 @@ Because this tool interacts with low-level USB HID interfaces (`hidraw`), your L
 To install the latest version of the CLI utility directly into your `$GOPATH/bin`:
 
 ```bash
-git clone https://github.com/papelblume/atk-tool-plus
-go build -o atk-tool-plus ./cmd/atk-tool-plus
+go install github.com/papelblume/atk-tool-plus/cmd/atk-tool-plus@latest
 ```
 
 ### Usage
