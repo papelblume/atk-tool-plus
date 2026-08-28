@@ -1,6 +1,5 @@
 # ATK Peripheral Tool
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/noosxe/atk-tool)](https://goreportcard.com/report/github.com/noosxe/atk-tool)
 [![Go Reference](https://pkg.go.dev/badge/github.com/noosxe/atk-tool.svg)](https://pkg.go.dev/github.com/noosxe/atk-tool)
 
 `atk-tool` is a modular Golang library and command-line utility for querying and interfacing with **ATK gaming peripherals** (focusing on mouse telemetry like battery status and voltage).
@@ -23,8 +22,10 @@ It is structured both as a reusable Go library that can be integrated into other
 
 Currently, the following devices are supported out of the box:
 
-- **ATK A9 Plus** (Wired Connection)
-- **Nearlink Mouse Dongle** (Wireless Receiver)
+- **ATK A9 Plus** — `373b:1115` (Wired Connection)
+- **Nearlink Mouse Dongle** — `373b:10c9` (Wireless Receiver)
+
+You can check the `vendor:product` ID of your own devices with `lsusb` (`373b` is ATK's vendor ID).
 
 To request support for more devices, or to add them yourself, see the [Extending Supported Devices](#extending-supported-devices) section below.
 
@@ -224,7 +225,7 @@ func main() {
 
 Adding support for new models is straightforward. You can either register them at runtime or add them natively to the source registry.
 
-### 1. Adding Native Support (For Forks/PRs)
+### 1. Adding Native Support (For Forks)
 
 If you have forked the repository and wish to add support natively for all CLI and library users, you can add your device definition directly to the `defaultRegistry` slice in [registry.go](file:///home/mechsoull/Projects/atk-tool/registry.go):
 
@@ -261,6 +262,16 @@ func init() {
 	})
 }
 ```
+
+---
+
+## Contributing
+
+Thank you for your interest in this project! **Contributions are not accepted at this moment.**
+
+This means pull requests, feature requests, and additions to the device registry will not be merged, regardless of scope. Bugs and unexpected behavior reports are still welcome via the issue tracker.
+
+You are very welcome to **fork** the repository and extend it for your own devices — the [MIT License](LICENSE) explicitly permits use, modification, and redistribution. For devices not covered by the default registry, see the [Extending Supported Devices](#extending-supported-devices) section for runtime registration, or fork and edit the registry directly.
 
 ---
 
