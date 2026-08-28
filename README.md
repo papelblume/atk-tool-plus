@@ -1,9 +1,10 @@
 # ATK Peripheral Tool
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/noosxe/atk-tool)](https://goreportcard.com/report/github.com/noosxe/atk-tool)
 [![Go Reference](https://pkg.go.dev/badge/github.com/noosxe/atk-tool.svg)](https://pkg.go.dev/github.com/noosxe/atk-tool)
 
-`atk-tool` is a modular Golang library and command-line utility for querying and interfacing with **ATK gaming peripherals** (focusing on mouse telemetry like battery status and voltage).
+`atk-tool-plus` is an extended/enhanced fork of [atk-tool](https://github.com/noosxe/atk-tool), a modular Golang library and command-line utility for querying and interfacing with **ATK gaming peripherals** (focusing on mouse telemetry like battery status and voltage).
+
+This fork adds support for ATK's second protocol generation (usage page `0xFF05`), expands the device registry to 251 entries, and supports querying multiple connected mice at once instead of stopping at the first one found.
 
 It is structured both as a reusable Go library that can be integrated into other projects and as a standalone CLI tool.
 
@@ -12,19 +13,40 @@ It is structured both as a reusable Go library that can be integrated into other
 ## Features
 
 - **Telemetry Queries:** Fetch battery charge percentage, current operating voltage, and charging status (wired vs. wireless).
+- **Dual Protocol Support:** Handles both the original ATK protocol (UsagePage `0xFF02`/`0xFF04`) and the newer ATK protocol (UsagePage `0xFF05`) transparently, dispatching automatically based on the connected device.
 - **Deduplication:** Merges multiple HID interface/endpoint paths into single logical devices.
 - **JSON Outputs:** Native structured JSON output formats for seamless scripting and dashboard integration.
-- **Highly Modular:** Centralized device registry for easy support expansion of additional models.
-- **Subcommand Aliases:** Fast, intuitive CLI commands powered by Cobra (e.g. `atk-tool battery`).
+- **Highly Modular:** Centralized device registry for easy support expansion of additional models. The current 251 entries *should* contain all ATK and VXE mice variants as of 2027-08.
+- **Efficient Enumeration:** Performs a single HID bus scan per unique vendor ID. Device discovery time stays constant regardless of how many devices are in the registry.
+- **Subcommand Aliases:** Fast, intuitive CLI commands powered by Cobra (e.g. `atk-tool-plus battery`).
 
 ---
 
 ## Supported Devices
 
-Currently, the following devices are supported out of the box:
+The registry contains **251 entries** spanning two protocol families:
 
-- **ATK A9 Plus** (Wired Connection)
-- **Nearlink Mouse Dongle** (Wireless Receiver)
+| Protocol | Usage Pages | Entries |
+|---|---|---|
+| v1.0 | `0xFF02`, `0xFF04` | 187 |
+| v2.0 | `0xFF05` | 64 |
+
+The correct protocol is selected automatically based on the UsagePage exposed by the device — no manual configuration is required.
+
+Registry entries are sourced from the ATK HUB webHID. The following **6 devices have been tested**:
+
+| Device | VID:PID | Connection |
+|---|---|---|
+| ATK A9 Plus | `373b:1115` | Wired |
+| Nearlink Mouse Dongle | `373b:10c9` | Wireless receiver |
+| ATK A9 Plus 2.0 / ATK Dragonfly A9 Plus 2.0 | `373b:1263` | Wired |
+| NK mouse NANO dongle | `373b:1216` | Wireless receiver |
+| ATK VXE R1 Pro | `373b:1272` | Wired |
+| VXE NordicMouse 1K Dongle | `3554:f58a` | Wireless receiver |
+
+Untested registry entries may work correctly — if you verify a device not listed above, a note in the issue tracker is welcome.
+
+You can check the `vendor:product` ID of your own devices with `lsusb` (ATK uses vendor IDs `373b` or `3554`).
 
 To request support for more devices, or to add them yourself, see the [Extending Supported Devices](#extending-supported-devices) section below.
 
@@ -38,6 +60,7 @@ Because this tool interacts with low-level USB HID interfaces (`hidraw`), your L
    ```udev
    # ATK / Compx USB Peripherals & Receiver Dongles
    SUBSYSTEM=="hidraw", ATTRS{idVendor}=="373b", MODE="0666"
+   SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3554", MODE="0666"
    ```
 2. Reload and trigger the rule configuration:
    ```bash
@@ -53,7 +76,8 @@ Because this tool interacts with low-level USB HID interfaces (`hidraw`), your L
 To install the latest version of the CLI utility directly into your `$GOPATH/bin`:
 
 ```bash
-go install github.com/noosxe/atk-tool/cmd/atk-tool@latest
+git clone https://github.com/papelblume/atk-tool-plus
+go build -o atk-tool-plus ./cmd/atk-tool-plus
 ```
 
 ### Usage
@@ -61,34 +85,34 @@ go install github.com/noosxe/atk-tool/cmd/atk-tool@latest
 Run the utility without any arguments (or with `--help`) to view the standard help:
 
 ```bash
-atk-tool
+atk-tool-plus
 ```
 
 #### 1. List connected ATK devices
 ```bash
-atk-tool list
+atk-tool-plus list
 ```
 
 #### 2. Get battery telemetry
 ```bash
-atk-tool status
+atk-tool-plus status
 # OR using the alias:
-atk-tool battery
+atk-tool-plus battery
 ```
 
 #### 3. Output in JSON format
 ```bash
-atk-tool status --json
+atk-tool-plus status --json
 ```
 
 #### 4. Target a specific device path (useful when multiple dongles are plugged in)
 ```bash
-atk-tool status --device /dev/hidraw5
+atk-tool-plus status --device /dev/hidraw5
 ```
 
 ### Shell Completions
 
-`atk-tool` supports generating autocompletion scripts for Bash, Zsh, Fish, and PowerShell.
+`atk-tool-plus` supports generating autocompletion scripts for Bash, Zsh, Fish, and PowerShell.
 
 #### Bash
 
@@ -96,17 +120,17 @@ This script depends on the `bash-completion` package. If it is not installed alr
 
 To load completions in your current shell session:
 ```bash
-source <(atk-tool completion bash)
+source <(atk-tool-plus completion bash)
 ```
 
 To load completions for every new session, execute once:
 *   **Linux**:
     ```bash
-    atk-tool completion bash > /etc/bash_completion.d/atk-tool
+    atk-tool-plus completion bash > /etc/bash_completion.d/atk-tool
     ```
 *   **macOS**:
     ```bash
-    atk-tool completion bash > $(brew --prefix)/etc/bash_completion.d/atk-tool
+    atk-tool-plus completion bash > $(brew --prefix)/etc/bash_completion.d/atk-tool
     ```
 
 #### Zsh
@@ -118,36 +142,36 @@ echo "autoload -U compinit; compinit" >> ~/.zshrc
 
 To load completions in your current shell session:
 ```zsh
-source <(atk-tool completion zsh)
+source <(atk-tool-plus completion zsh)
 ```
 
 To load completions for every new session, execute once:
 *   **Linux**:
     ```zsh
-    atk-tool completion zsh > "${fpath[1]}/_atk-tool"
+    atk-tool-plus completion zsh > "${fpath[1]}/_atk-tool"
     ```
 *   **macOS**:
     ```zsh
-    atk-tool completion zsh > $(brew --prefix)/share/zsh/site-functions/_atk-tool
+    atk-tool-plus completion zsh > $(brew --prefix)/share/zsh/site-functions/_atk-tool
     ```
 
 #### Fish
 
 To load completions in your current shell session:
 ```fish
-atk-tool completion fish | source
+atk-tool-plus completion fish | source
 ```
 
 To load completions for every new session, execute once:
 ```fish
-atk-tool completion fish > ~/.config/fish/completions/atk-tool.fish
+atk-tool-plus completion fish > ~/.config/fish/completions/atk-tool.fish
 ```
 
 #### PowerShell
 
 To load completions in your current shell session:
 ```powershell
-atk-tool completion powershell | Out-String | Invoke-Expression
+atk-tool-plus completion powershell | Out-String | Invoke-Expression
 ```
 
 To load completions for every new session, add the output of the command above to your PowerShell profile.
@@ -156,12 +180,12 @@ To load completions for every new session, add the output of the command above t
 
 ## Library Usage
 
-You can import `github.com/noosxe/atk-tool` as a dependency in your own Go projects to scan and query ATK peripherals.
+You can import `github.com/papelblume/atk-tool-plus` as a dependency in your own Go projects to scan and query ATK peripherals.
 
 ### Installation
 
 ```bash
-go get github.com/noosxe/atk-tool
+go get github.com/papelblume/atk-tool-plus
 ```
 
 ### Code Example
@@ -173,7 +197,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/noosxe/atk-tool"
+	"github.com/papelblume/atk-tool-plus"
 )
 
 func main() {
@@ -224,7 +248,14 @@ func main() {
 
 Adding support for new models is straightforward. You can either register them at runtime or add them natively to the source registry.
 
-### 1. Adding Native Support (For Forks/PRs)
+Before adding a device, identify its UsagePage using `usbhid-dump` or a similar HID inspection tool, then match it to the correct protocol family:
+
+| UsagePage | Protocol |
+|---|---|
+| `0xFF02`, `0xFF04` | v1.0 |
+| `0xFF05` | v2.0 |
+
+### 1. Adding Native Support (For Forks)
 
 If you have forked the repository and wish to add support natively for all CLI and library users, you can add your device definition directly to the `defaultRegistry` slice in [registry.go](file:///home/mechsoull/Projects/atk-tool/registry.go):
 
@@ -242,14 +273,14 @@ var defaultRegistry = []DeviceDefinition{
 ```
 
 > [!NOTE]
-> If the new device uses a Vendor ID different from `373b` (the default ATK Vendor ID), you will also need to add a corresponding udev rule in your Linux setup to grant user permissions for it.
+> If the new device uses a Vendor ID different from `373b`, you will also need to add a corresponding udev rule in your Linux setup to grant user permissions for it. See the [Linux Setup](#linux-setup-udev-rules) section for the rule format.
 
 ### 2. Registering Devices at Runtime
 
-If you are using `atk-tool` as a library in your own project, you can register custom models at runtime before calling the scanning/enumeration functions:
+If you are using `atk-tool-plus` as a library in your own project, you can register custom models at runtime before calling the scanning/enumeration functions:
 
 ```go
-import "github.com/noosxe/atk-tool"
+import "github.com/papelblume/atk-tool-plus"
 
 func init() {
 	atk.RegisterDevice(atk.DeviceDefinition{
@@ -261,6 +292,16 @@ func init() {
 	})
 }
 ```
+
+---
+
+## Contributing
+
+Thank you for your interest in this project! **Contributions are not accepted at this moment.**
+
+This means pull requests, feature requests, and additions to the device registry will not be merged, regardless of scope. Bugs and unexpected behavior reports are still welcome via the issue tracker.
+
+You are very welcome to **fork** the repository and extend it for your own devices — the [MIT License](LICENSE) explicitly permits use, modification, and redistribution. For devices not covered by the default registry, see the [Extending Supported Devices](#extending-supported-devices) section for runtime registration, or fork and edit the registry directly.
 
 ---
 

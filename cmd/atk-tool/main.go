@@ -183,9 +183,7 @@ func handleStatus(devicePath string, jsonOut bool) {
 			handleError(err, jsonOut)
 			os.Exit(1)
 		}
-		defer dev.Close()
-
-		batt, err := dev.QueryBattery()
+		batt, err := queryAndClose(dev)
 		if err != nil {
 			handleError(err, jsonOut)
 			os.Exit(1)
@@ -195,30 +193,56 @@ func handleStatus(devicePath string, jsonOut bool) {
 		return
 	}
 
-	// Loop over all candidate devices and try querying battery status.
-	// If one fails or times out, try the next one.
-	var lastErr error
+	// Query every connected device and print status for each. Devices that
+	// fail to open or fail the battery query are reported individually
+	// rather than aborting the whole command.
+	type statusResult struct {
+		Device  *atk.DeviceInfo  `json:"device"`
+		Battery *atk.BatteryInfo `json:"battery,omitempty"`
+		Error   string           `json:"error,omitempty"`
+	}
+
+	var results []statusResult
+	successCount := 0
+
 	for _, candidate := range devices {
 		dev, err := atk.Open(candidate)
 		if err != nil {
-			lastErr = err
+			results = append(results, statusResult{Device: candidate, Error: err.Error()})
 			continue
 		}
 
-		batt, err := dev.QueryBattery()
-		dev.Close()
+		batt, err := queryAndClose(dev)
+
 		if err != nil {
-			lastErr = err
+			results = append(results, statusResult{Device: candidate, Error: err.Error()})
 			continue
 		}
 
-		printStatus(candidate, batt, jsonOut)
-		return
+		results = append(results, statusResult{Device: candidate, Battery: batt})
+		successCount++
 	}
 
-	// If all candidates failed, print error and exit.
-	handleError(fmt.Errorf("all connected devices failed to query: %w", lastErr), jsonOut)
-	os.Exit(1)
+	if jsonOut {
+		b, _ := json.MarshalIndent(results, "", "  ")
+		fmt.Println(string(b))
+	} else {
+		for i, res := range results {
+			if i > 0 {
+				fmt.Println()
+			}
+			if res.Error != "" {
+				fmt.Printf("⚠️  %s (%s): %s\n", res.Device.ModelName, res.Device.Path, res.Error)
+				continue
+			}
+			printStatus(res.Device, res.Battery, jsonOut)
+		}
+	}
+
+	// Exit non-zero only if every device failed.
+	if successCount == 0 {
+		os.Exit(1)
+	}
 }
 
 func printJSONError(err error) {
@@ -233,4 +257,15 @@ func handleError(err error, jsonOut bool) {
 	} else {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 	}
+}
+
+// queryAndClose queries the battery status of the given device and ensures
+// the connection is closed before returning.
+func queryAndClose(dev *atk.Device) (*atk.BatteryInfo, error) {
+	defer func() {
+		if err := dev.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close device: %v\n", err)
+		}
+	}()
+	return dev.QueryBattery()
 }

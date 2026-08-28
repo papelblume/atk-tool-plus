@@ -7,39 +7,51 @@ import (
 )
 
 // Enumerate scans the USB bus for registered and supported ATK devices.
+// It enumerates once per unique vendor ID across the registry rather than
+// once per device entry, keeping HID subsystem calls constant regardless
+// of registry size.
 func Enumerate() ([]*DeviceInfo, error) {
 	var found []*DeviceInfo
 	seenPaths := make(map[string]bool)
 
+	// Collect unique vendor IDs to minimise enumerate calls.
+	vendorIDs := make(map[uint16]bool)
 	for _, def := range RegisteredDevices() {
-		err := hid.Enumerate(def.VendorID, def.ProductID, func(info *hid.DeviceInfo) error {
-			if def.Matches(info.UsagePage) {
-				if seenPaths[info.Path] {
-					return nil
-				}
-				seenPaths[info.Path] = true
+		vendorIDs[def.VendorID] = true
+	}
 
-				productName := info.ProductStr
-				if productName == "" {
-					productName = "ATK Peripheral"
-				}
-
-				found = append(found, &DeviceInfo{
-					Path:        info.Path,
-					VendorID:    info.VendorID,
-					ProductID:   info.ProductID,
-					Interface:   info.InterfaceNbr,
-					UsagePage:   info.UsagePage,
-					Usage:       info.Usage,
-					ProductName: productName,
-					ModelName:   def.Name,
-					ReportID:    def.ReportID,
-				})
+	for vid := range vendorIDs {
+		err := hid.Enumerate(vid, 0, func(info *hid.DeviceInfo) error {
+			// Discard immediately if not in the registry or wrong usage page.
+			def, ok := FindDefinition(info.VendorID, info.ProductID)
+			if !ok || !def.Matches(info.UsagePage) {
+				return nil
 			}
+			if seenPaths[info.Path] {
+				return nil
+			}
+			seenPaths[info.Path] = true
+
+			productName := info.ProductStr
+			if productName == "" {
+				productName = "ATK Peripheral"
+			}
+
+			found = append(found, &DeviceInfo{
+				Path:        info.Path,
+				VendorID:    info.VendorID,
+				ProductID:   info.ProductID,
+				Interface:   info.InterfaceNbr,
+				UsagePage:   info.UsagePage,
+				Usage:       info.Usage,
+				ProductName: productName,
+				ModelName:   def.Name,
+				ReportID:    def.ReportID,
+			})
 			return nil
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to enumerate device %s (VID: 0x%04x, PID: 0x%04x): %w", def.Name, def.VendorID, def.ProductID, err)
+			return nil, fmt.Errorf("failed to enumerate devices for VID 0x%04x: %w", vid, err)
 		}
 	}
 
